@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time WebSocket Debugger</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #rawMessages {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            max-height: 300px;
+            overflow-y: scroll;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 5px;
+            border-bottom: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+<h1>Real-Time WebSocket Debugger</h1>
+<h3>Raw WebSocket Messages:</h3>
+<div id="rawMessages"></div>
+
+<script>
+    const socket = new SockJS('/ws'); // WebSocket connection
+    const stompClient = Stomp.over(socket);
+
+    stompClient.connect({}, function () {
+        console.log("Connected to WebSocket");
+
+        // Subscribe to the order topic
+        stompClient.subscribe('/topic/order', function (message) {
+            const orderUpdate = JSON.parse(message.body);
+            displayRawMessage(">>> RECEIVED\n" + message.body);
+        });
+    });
+
+    // Override the send method to display raw payloads
+    const originalSend = stompClient.send.bind(stompClient);
+    stompClient.send = function (destination, headers, body) {
+        displayRawMessage(`>>> SEND\ndestination:${destination}\ncontent-length:${body.length}\n\n${body}`);
+        originalSend(destination, headers, body);
+    };
+
+    // Function to display raw messages
+    function displayRawMessage(rawMessage) {
+        const rawMessagesDiv = document.getElementById('rawMessages');
+        const messageElement = document.createElement('div');
+        messageElement.className = 'message';
+        messageElement.innerText = rawMessage;
+        rawMessagesDiv.appendChild(messageElement);
+    }
+
+    // Simulate sending updates from the backend
+    function sendTestUpdates() {
+        stompClient.send("/app/order/status", {}, JSON.stringify({ orderId: "12345", status: "Preparing your order" }));
+        setTimeout(() => stompClient.send("/app/order/status", {}, JSON.stringify({ orderId: "12345", status: "Your order is on the way" })), 3000);
+        setTimeout(() => stompClient.send("/app/order/status", {}, JSON.stringify({ orderId: "12345", status: "Delivered!" })), 6000);
+    }
+
+    // Trigger updates after a short delay
+    setTimeout(sendTestUpdates, 2000);
+</script>
+</body>
+</html>
